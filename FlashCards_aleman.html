@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Flashcards de Alemán — Frases y Verbos</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:20px;
+            color: white;
+        }
+        .header { text-align:center; margin-bottom:20px; }
+        .header h1 { font-size:2rem; text-shadow:2px 2px 6px rgba(0,0,0,0.3); }
+        .controls-top { display:flex; gap:12px; margin:10px 0 20px; align-items:center; }
+        .select-mode { padding:8px 12px; border-radius:8px; border:none; font-weight:600; }
+        .flashcard-container { perspective:1000px; margin-bottom:20px; }
+        .flashcard { width:460px; height:300px; position:relative; transform-style:preserve-3d; transition:transform 0.6s; cursor:pointer; }
+        .flashcard.flipped { transform:rotateY(180deg); }
+        .card-face { position:absolute; width:100%; height:100%; backface-visibility:hidden; border-radius:15px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; padding:24px; box-shadow:0 10px 30px rgba(0,0,0,0.3); color:#222; }
+        .card-front { background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); }
+        .card-back { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); transform:rotateY(180deg); overflow:auto; }
+        .category { position:absolute; top:12px; right:12px; background: rgba(255,255,255,0.35); padding:6px 10px; border-radius:18px; font-size:0.85rem; font-weight:600; color:#111 }
+        .german-word { font-size:2rem; font-weight:800; margin-bottom:10px; color:#111 }
+        .pronunciation { font-size:1rem; font-style:italic; opacity:0.8; margin-bottom:6px; color:#111 }
+        .spanish-translation { font-size:1.25rem; font-weight:700; color:#111 }
+        .meta-small { font-size:0.95rem; opacity:0.85; margin-top:6px; }
+        .controls { display:flex; gap:12px; margin:16px 0; }
+        .btn { padding:10px 18px; border-radius:22px; border:none; cursor:pointer; font-weight:700; box-shadow:0 6px 18px rgba(0,0,0,0.25); }
+        .btn-primary { background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
+        .btn-secondary { background: linear-gradient(135deg,#f093fb 0%,#f5576c 100%); color:white; }
+        .progress { width:100%; max-width:460px; background:rgba(255,255,255,0.2); border-radius:10px; padding:3px; margin-bottom:12px; }
+        .progress-bar { height:8px; background: linear-gradient(90deg,#00c9ff 0%,#92fe9d 100%); border-radius:8px; transition:width 0.3s ease; }
+        .stats { display:flex; gap:16px; color:white; font-size:0.9rem; margin-top:8px; }
+        .stat { text-align:center; min-width:90px; }
+        .stat-number { font-size:1.3rem; font-weight:800; display:block; color:#fff; }
+        .flip-hint { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); font-size:0.9rem; opacity:0.8; color:#111 }
+        .conj-table { width:100%; border-collapse:collapse; margin-top:10px; color:#111; }
+        .conj-table td, .conj-table th { border:1px solid rgba(0,0,0,0.05); padding:6px 8px; font-size:0.95rem; }
+        .labels { font-weight:700; }
+        .variations { text-align:left; width:100%; margin-top:8px; color:#111 }
+        /* responsive */
+        @media (max-width:520px) {
+            .flashcard { width:340px; height:240px; }
+            .progress { max-width:340px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🇩🇪 Flashcards de Alemán — Frases & Verbos</h1>
+        <div class="controls-top">
+            <label for="modeSelect" style="font-weight:700; margin-right:6px;">Modo:</label>
+            <select id="modeSelect" class="select-mode" onchange="changeMode()">
+                <option value="phrases">Frases (100)</option>
+                <option value="verbs">Verbos (100)</option>
+            </select>
+            <button class="btn btn-secondary" onclick="shuffleCurrent()">🔀 Mezclar</button>
+            <button class="btn btn-primary" onclick="resetProgress()">♻️ Reiniciar progreso</button>
+        </div>
+        <p style="opacity:0.95">Haz clic en la tarjeta para voltear. Usa ← → para navegar. Barra espaciadora voltea o avanza.</p>
+    </div>
+
+    <div class="progress">
+        <div class="progress-bar" id="progressBar" style="width:0%"></div>
+    </div>
+
+    <div class="flashcard-container">
+        <div class="flashcard" id="flashcard" onclick="flipCard()">
+            <div class="card-face card-front">
+                <div class="category" id="category">Frase</div>
+                <div class="german-word" id="germanWord">Hallo</div>
+                <div class="pronunciation" id="pronunciation">[ˈhalo]</div>
+                <div class="flip-hint">👆 Toca para voltear</div>
+            </div>
+            <div class="card-face card-back">
+                <div style="width:100%; text-align:left;">
+                    <div class="spanish-translation" id="spanishTranslation">Hola</div>
+                    <div class="meta-small" id="extraInfo"></div>
+                    <div id="backContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn btn-secondary" onclick="previousCard()">⬅️ Anterior</button>
+        <button class="btn btn-primary" onclick="nextCard()">Siguiente ➡️</button>
+    </div>
+
+    <div class="stats">
+        <div class="stat">
+            <span class="stat-number" id="currentCard">1</span>
+            <span>Tarjeta actual</span>
+        </div>
+        <div class="stat">
+            <span class="stat-number" id="totalCards">100</span>
+            <span>Total</span>
+        </div>
+        <div class="stat">
+            <span class="stat-number" id="progress">0%</span>
+            <span>Progreso</span>
+        </div>
+    </div>
+
+    <script>
+    /******************************************************************
+     * DATA: 100 frases + 100 verbos (infinitivo + conjugaciones)
+     * Nota: por volumen la conjugación de muchos verbos sigue reglas regulares;
+     * algunos verbos irregulares comunes tienen formas específicas incluidas.
+     ******************************************************************/
+
+    // ---------- FRASES (100): alemán, fonética, traducción, variaciones ----------
+    const phrases = [
+        // I use the 100 phrases previously prepared. Format:
+        // { german: "...", phonetic: "...", spanish: "...", usage: "...", formal: "...", informal: "...", slang: "..." }
+        { german: "Hallo", phonetic: "(já-lo)", spanish: "Hola", usage: "Saludo general", formal: "Guten Tag", informal: "Hallo", slang: "Hey" },
+        { german: "Guten Morgen", phonetic: "(gú-ten mór-guen)", spanish: "Buenos días", usage: "Por la mañana", formal: "Guten Morgen", informal: "Morgen!", slang: "—" },
+        { german: "Guten Tag", phonetic: "(gú-ten ták)", spanish: "Buen día / Hola", usage: "Saludo diurno formal", formal: "Guten Tag", informal: "Tag!", slang: "—" },
+        { german: "Guten Abend", phonetic: "(gú-ten á-bent)", spanish: "Buenas tardes/noches", usage: "Saludo nocturno", formal: "Guten Abend", informal: "Abend!", slang: "—" },
+        { german: "Gute Nacht", phonetic: "(gú-te nájt)", spanish: "Buenas noches (despedida)", usage: "Al despedirse para dormir", formal: "Gute Nacht", informal: "Gute Nacht", slang: "—" },
+        { german: "Tschüss", phonetic: "(chús)", spanish: "Adiós", usage: "Despedida informal", formal: "Auf Wiedersehen", informal: "Tschüss", slang: "Ciao" },
+        { german: "Auf Wiedersehen", phonetic: "(auf ví-der-zé-en)", spanish: "Hasta luego / adiós (formal)", usage: "Despedida formal", formal: "Auf Wiedersehen", informal: "Tschüss", slang: "—" },
+        { german: "Bis später", phonetic: "(bis schpé-ter)", spanish: "Hasta luego (más tarde)", usage: "Quedamos más tarde", formal: "Bis später", informal: "Bis später", slang: "—" },
+        { german: "Bis bald", phonetic: "(bis bált)", spanish: "Hasta pronto", usage: "Despedida", formal: "Bis bald", informal: "Bis bald", slang: "—" },
+        { german: "Bis dann", phonetic: "(bis dan)", spanish: "Hasta entonces", usage: "Despedida casual", formal: "Bis dann", informal: "Bis dann", slang: "—" },
+        { german: "Danke", phonetic: "(dán-ke)", spanish: "Gracias", usage: "Agradecimiento", formal: "Vielen Dank", informal: "Danke", slang: "Danke dir / Merci" },
+        { german: "Vielen Dank", phonetic: "(fí-len dánk)", spanish: "Muchas gracias", usage: "Agradecimiento enfático", formal: "Vielen Dank", informal: "Danke", slang: "—" },
+        { german: "Danke schön", phonetic: "(dán-ke shón)", spanish: "Muchas gracias (cortés)", usage: "Agradecimiento educado", formal: "Danke schön", informal: "Danke", slang: "—" },
+        { german: "Bitte", phonetic: "(bí-te)", spanish: "Por favor / De nada", usage: "Por favor o respuesta a gracias", formal: "Bitte", informal: "Bitte", slang: "Gern" },
+        { german: "Gern geschehen", phonetic: "(gern ge-shé-en)", spanish: "De nada", usage: "Respuesta a gracias", formal: "Gern geschehen", informal: "Kein Problem", slang: "Alles gut" },
+        { german: "Kein Problem", phonetic: "(kain pro-blém)", spanish: "No hay problema", usage: "Respuesta informal a gracias", formal: "Kein Problem", informal: "Kein Problem", slang: "—" },
+        { german: "Entschuldigung", phonetic: "(ent-shúl-di-gung)", spanish: "Disculpa", usage: "Pedir atención o disculparse", formal: "Entschuldigen Sie bitte", informal: "Entschuldigung / Sorry", slang: "—" },
+        { german: "Es tut mir leid", phonetic: "(es tut mir láit)", spanish: "Lo siento", usage: "Disculpa sincera", formal: "Es tut mir leid", informal: "Es tut mir leid", slang: "—" },
+        { german: "Verzeihung", phonetic: "(fer-tsái-ung)", spanish: "Perdón (formal)", usage: "Forma formal de pedir perdón", formal: "Verzeihung", informal: "Entschuldigung", slang: "—" },
+        { german: "Natürlich", phonetic: "(na-túer-lish)", spanish: "Por supuesto / claro", usage: "Afirma algo", formal: "Natürlich", informal: "Klar!", slang: "—" },
+        { german: "Wie geht es Ihnen?", phonetic: "(ví guet es í-nen)", spanish: "¿Cómo está usted?", usage: "Pregunta formal", formal: "Wie geht es Ihnen?", informal: "Wie geht's?", slang: "Na, alles klar?" },
+        { german: "Wie geht's?/Wie geht es dir?", phonetic: "(ví guéts / ví guet es dir)", spanish: "¿Cómo estás?", usage: "informal", formal: "Wie geht es Ihnen?", informal: "Wie geht's? / Wie geht es dir?", slang: "Na, alles klar?" },
+        { german: "Mir geht's gut", phonetic: "(mir guéts guut)", spanish: "Estoy bien", usage: "Respuesta general", formal: "Mir geht's gut", informal: "Mir geht's gut", slang: "—" },
+        { german: "Und Ihnen?", phonetic: "(unt í-nen)", spanish: "¿Y usted?", usage: "Pregunta formal recíproca", formal: "Und Ihnen?", informal: "Und dir?", slang: "—" },
+        { german: "Und dir?", phonetic: "(unt dir)", spanish: "¿Y tú?", usage: "Pregunta informal recíproca", formal: "Und Ihnen?", informal: "Und dir?", slang: "—" },
+        { german: "Wie heißen Sie?", phonetic: "(ví hái-sen zí)", spanish: "¿Cómo se llama usted?", usage: "Presentación formal", formal: "Wie heißen Sie?", informal: "Wie heißt du?", slang: "—" },
+        { german: "Wie heißt du?", phonetic: "(ví háist du)", spanish: "¿Cómo te llamas?", usage: "Presentación informal", formal: "Wie heißen Sie?", informal: "Wie heißt du?", slang: "Wie heißt'e?" },
+        { german: "Ich heiße ...", phonetic: "(ich hái-se)", spanish: "Me llamo ...", usage: "Presentación", formal: "Ich heiße ...", informal: "Ich heiße ...", slang: "—" },
+        { german: "Freut mich", phonetic: "(froyt mich)", spanish: "Encantado/a", usage: "Al conocer a alguien", formal: "Sehr erfreut", informal: "Freut mich", slang: "—" },
+        { german: "Angenehm", phonetic: "(án-ge-nem)", spanish: "Un placer", usage: "Formal en presentaciones", formal: "Angenehm", informal: "Freut mich", slang: "—" },
+        { german: "Sprechen Sie Englisch?", phonetic: "(shpé-chen zí éng-lish)", spanish: "¿Habla usted inglés?", usage: "Pregunta formal", formal: "Sprechen Sie Englisch?", informal: "Sprichst du Englisch?", slang: "—" },
+        { german: "Sprichst du Englisch?", phonetic: "(shprikst du)", spanish: "¿Hablas inglés?", usage: "Pregunta informal", formal: "Sprechen Sie Englisch?", informal: "Sprichst du Englisch?", slang: "—" },
+        { german: "Ich spreche nur ein bisschen Deutsch", phonetic: "(ich shp ré-che nur ain bís-shen doych)", spanish: "Hablo solo un poco de alemán", usage: "Viajero/introductorio", formal: "Ich spreche nur ein bisschen Deutsch", informal: "Ich spreche nur ein bisschen Deutsch", slang: "—" },
+        { german: "Können Sie das bitte wiederholen?", phonetic: "(kó-nen zí das bí-te ví-der-hó-len)", spanish: "¿Puede repetirlo, por favor?", usage: "Pedir repetición formal", formal: "Können Sie das bitte wiederholen?", informal: "Kannst du das bitte wiederholen?", slang: "—" },
+        { german: "Können Sie langsamer sprechen?", phonetic: "(kó-nen zí láng-za-mer shpé-chen)", spanish: "¿Puede hablar más lento?", usage: "Pedir hablar más lento", formal: "Können Sie langsamer sprechen?", informal: "Sprich bitte langsamer.", slang: "—" },
+        { german: "Ich verstehe nicht", phonetic: "(ich fer-shté-e nicht)", spanish: "No lo entiendo", usage: "Comprensión", formal: "Ich verstehe nicht", informal: "Ich verstehe nicht", slang: "—" },
+        { german: "Ich verstehe", phonetic: "(ich fer-shté-e)", spanish: "Entiendo", usage: "Comprensión", formal: "Ich verstehe", informal: "Ich verstehe", slang: "—" },
+        { german: "Ich habe das nicht verstanden", phonetic: "(ich há-be das nicht fer-shtán-den)", spanish: "No he entendido eso", usage: "Comprensión", formal: "Ich habe das nicht verstanden", informal: "Ich habe das nicht verstanden", slang: "—" },
+        { german: "Können Sie das erklären?", phonetic: "(kó-nen zí das erk-lé-ren)", spanish: "¿Puede explicarlo?", usage: "Pedir explicación formal", formal: "Können Sie das erklären?", informal: "Kannst du das erklären?", slang: "—" },
+        { german: "Wie sagt man ... auf Deutsch?", phonetic: "(ví sagt man auf doych)", spanish: "¿Cómo se dice ... en alemán?", usage: "Pedir traducción", formal: "Wie sagt man ... auf Deutsch?", informal: "Wie sagt man ... auf Deutsch?", slang: "—" },
+        { german: "Was bedeutet ...?", phonetic: "(vas be-dóit-et)", spanish: "¿Qué significa ...?", usage: "Pedir significado", formal: "Was bedeutet ...?", informal: "Was bedeutet ...?", slang: "—" },
+        { german: "Wie schreibt man das?", phonetic: "(ví shraibt man das)", spanish: "¿Cómo se escribe eso?", usage: "Pedir ortografía", formal: "Wie schreibt man das?", informal: "Wie schreibt man das?", slang: "—" },
+        { german: "Können Sie das bitte buchstabieren?", phonetic: "(kó-nen zí das bí-te bux-shta-bi-ren)", spanish: "¿Puede deletrearlo?", usage: "Pedir deletreo formal", formal: "Können Sie das bitte buchstabieren?", informal: "Kannst du das buchstabieren?", slang: "—" },
+        { german: "Buchstabieren Sie bitte", phonetic: "(bux-shta-bi-ren zí bí-te)", spanish: "Deletree, por favor", usage: "Pedir deletreo", formal: "Buchstabieren Sie bitte", informal: "Buchstabiere bitte", slang: "—" },
+        { german: "Noch einmal, bitte", phonetic: "(noch ái-nal bí-te)", spanish: "Otra vez, por favor", usage: "Pedir repetición", formal: "Noch einmal, bitte", informal: "Noch mal, bitte", slang: "—" },
+        { german: "Wo ist die Toilette?", phonetic: "(vo ist di toá-let-te)", spanish: "¿Dónde está el baño?", usage: "Preguntar lugar - baño", formal: "Wo ist die Toilette?", informal: "Wo ist'n Klo?", slang: "—" },
+        { german: "Wo ist ...?", phonetic: "(vo ist)", spanish: "¿Dónde está ...?", usage: "Preguntar ubicación", formal: "Wo ist ...?", informal: "Wo ist ...?", slang: "—" },
+        { german: "Wie komme ich zu ...?", phonetic: "(ví có-me ich tsu)", spanish: "¿Cómo llego a ...?", usage: "Pedir direcciones", formal: "Wie komme ich zu ...?", informal: "Wie komme ich zu ...?", slang: "—" },
+        { german: "Entschuldigen Sie, ich bin verloren", phonetic: "(ent-shúl-di-gen zí ich bin fer-ló-ren)", spanish: "Disculpe, estoy perdido(a)", usage: "Pedir ayuda direccional", formal: "Entschuldigen Sie, ich bin verloren", informal: "Ich habe mich verlaufen", slang: "—" },
+        { german: "Können Sie mir helfen?", phonetic: "(kó-nen zí mir hé-lfen)", spanish: "¿Puede ayudarme?", usage: "Pedir ayuda formal", formal: "Können Sie mir helfen?", informal: "Kannst du mir helfen?", slang: "Hilf mir mal!" },
+        { german: "Ich brauche Hilfe", phonetic: "(ich bráu-he hí-lfe)", spanish: "Necesito ayuda", usage: "Pedir ayuda", formal: "Ich brauche Hilfe", informal: "Ich brauche Hilfe", slang: "—" },
+        { german: "Rufen Sie die Polizei!", phonetic: "(rú-fen zí di po-li-tsái)", spanish: "¡Llame a la policía!", usage: "Emergencia formal", formal: "Rufen Sie die Polizei!", informal: "Ruf die Polizei!", slang: "—" },
+        { german: "Feuer! / Hilfe!", phonetic: "(foi-er / hí-lfe)", spanish: "¡Fuego! / ¡Socorro!", usage: "Emergencia", formal: "—", informal: "—", slang: "—" },
+        { german: "Ist alles in Ordnung?", phonetic: "(ist á-les in ór-dnung)", spanish: "¿Todo bien?", usage: "Comprobar estado", formal: "Ist alles in Ordnung?", informal: "Alles ok?", slang: "Alles klar?" },
+        { german: "Alles klar?", phonetic: "(á-les klár)", spanish: "¿Todo claro?/¿Todo bien?", usage: "Confirmación informal", formal: "Ist alles klar?", informal: "Alles klar?", slang: "Alles klar?" },
+        { german: "Wie viel kostet das?", phonetic: "(ví fíel kóstet das)", spanish: "¿Cuánto cuesta eso?", usage: "Preguntar precio", formal: "Wie viel kostet das?", informal: "Was kostet das?", slang: "—" },
+        { german: "Was kostet das?", phonetic: "(vas kóstet das)", spanish: "¿Qué cuesta?", usage: "Preguntar precio", formal: "Was kostet das?", informal: "Was kostet das?", slang: "—" },
+        { german: "Ich möchte das, bitte", phonetic: "(ich móh-te das bí-te)", spanish: "Quisiera esto, por favor", usage: "Pedir en restaurante/tienda", formal: "Ich möchte das, bitte", informal: "Ich möchte das", slang: "—" },
+        { german: "Ich hätte gern ...", phonetic: "(ich hé-te gern)", spanish: "Me gustaría ...", usage: "Pedir de forma cortes", formal: "Ich hätte gern ...", informal: "Ich hätte gern ...", slang: "—" },
+        { german: "Die Rechnung, bitte", phonetic: "(di réch-nung bí-te)", spanish: "La cuenta, por favor", usage: "Restaurante", formal: "Die Rechnung, bitte", informal: "Die Rechnung, bitte", slang: "—" },
+        { german: "Prost! / Zum Wohl!", phonetic: "(prost / tsum vóhl)", spanish: "¡Salud!", usage: "Brindis", formal: "Zum Wohl!", informal: "Prost!", slang: "—" },
+        { german: "Gute Besserung", phonetic: "(gú-te be-sé-rung)", spanish: "Que te mejores", usage: "Deseo de recuperación", formal: "Gute Besserung", informal: "Gute Besserung", slang: "—" },
+        { german: "Viel Glück", phonetic: "(fíl glúk)", spanish: "Buena suerte", usage: "Deseo", formal: "Viel Glück", informal: "Viel Glück", slang: "—" },
+        { german: "Herzlichen Glückwunsch", phonetic: "(hérts-li-chen glúk-vúnsh)", spanish: "Felicitaciones", usage: "Felicitación formal", formal: "Herzlichen Glückwunsch", informal: "Glückwunsch!", slang: "—" },
+        { german: "Alles Gute", phonetic: "(á-les gú-te)", spanish: "Todo lo mejor", usage: "Saludos de celebración", formal: "Alles Gute", informal: "Alles Gute", slang: "—" },
+        { german: "Herzlich willkommen", phonetic: "(hérts-likh vil-kó-men)", spanish: "Bienvenido/a", usage: "Bienvenida formal", formal: "Herzlich willkommen", informal: "Willkommen!", slang: "—" },
+        { german: "Willkommen!", phonetic: "(vil-kó-men)", spanish: "Bienvenido", usage: "Bienvenida informal", formal: "Herzlich willkommen", informal: "Willkommen!", slang: "—" },
+        { german: "Bitte sehr", phonetic: "(bí-te zé-er)", spanish: "De nada / aquí tiene", usage: "Al entregar algo", formal: "Bitte sehr", informal: "Bitte sehr", slang: "—" },
+        { german: "Gern / Gern geschehen", phonetic: "(gern / gern ge-shé-en)", spanish: "Con gusto / de nada", usage: "Respuesta a gracias", formal: "Gern geschehen", informal: "Gern", slang: "—" },
+        { german: "Kein Problem / Macht nichts", phonetic: "(kain pro-blém / makht niks)", spanish: "No pasa nada", usage: "Tranquilizar", formal: "Kein Problem", informal: "Macht nichts", slang: "—" },
+        { german: "Ich weiß nicht", phonetic: "(ich váis nicht)", spanish: "No sé", usage: "Desconocimiento", formal: "Ich weiß nicht", informal: "Ich weiß nicht", slang: "Keine Ahnung" },
+        { german: "Keine Ahnung", phonetic: "(kái-ne a-nung)", spanish: "Ni idea", usage: "Respuesta coloquial", formal: "Ich weiß nicht", informal: "Keine Ahnung", slang: "—" },
+        { german: "Vielleicht", phonetic: "(fi-láycht)", spanish: "Tal vez / quizá", usage: "Posibilidad", formal: "Vielleicht", informal: "Vielleicht", slang: "—" },
+        { german: "Natürlich nicht", phonetic: "(na-túer-likh nicht)", spanish: "Claro que no", usage: "Negación enfática", formal: "Natürlich nicht", informal: "Natürlich nicht", slang: "—" },
+        { german: "Doch!", phonetic: "(doch)", spanish: "¡Sí (contradiciendo una negación)!", usage: "Contradicción enfática", formal: "Doch!", informal: "Doch!", slang: "—" },
+        { german: "Pass auf! / Vorsicht!", phonetic: "(pas auf / for-zíght)", spanish: "¡Cuidado!", usage: "Advertencia", formal: "Vorsicht!", informal: "Pass auf!", slang: "Achtung!" },
+        { german: "Achtung!", phonetic: "(ák-tung)", spanish: "¡Atención!", usage: "Advertencia formal", formal: "Achtung!", informal: "Vorsicht!", slang: "—" },
+        { german: "Mach's gut", phonetic: "(maxs gut)", spanish: "Cuídate / que te vaya bien", usage: "Despedida informal", formal: "Alles Gute", informal: "Mach's gut", slang: "—" },
+        { german: "Viel Spaß", phonetic: "(fíl shpás)", spanish: "Que te diviertas", usage: "Deseo informal", formal: "Viel Spaß", informal: "Viel Spaß", slang: "—" },
+        { german: "Gute Reise", phonetic: "(gú-te ráy-ze)", spanish: "Buen viaje", usage: "Desear buen viaje", formal: "Gute Reise", informal: "Gute Reise", slang: "—" },
+        { german: "Ich liebe dich", phonetic: "(ich lí-be dish)", spanish: "Te amo", usage: "Expresar amor", formal: "—", informal: "Ich liebe dich", slang: "—" },
+        { german: "Ich hab dich lieb", phonetic: "(ich hab dish líb)", spanish: "Te quiero (menos intenso)", usage: "Afecto informal", formal: "—", informal: "Ich hab dich lieb", slang: "—" },
+        { german: "Ich mag dich", phonetic: "(ich mak dish)", spanish: "Me gustas / me caes bien", usage: "Afecto/amistad", formal: "—", informal: "Ich mag dich", slang: "—" },
+        { german: "Alles in Ordnung", phonetic: "(á-les in ór-dnung)", spanish: "Todo en orden", usage: "Confirmar estado", formal: "Alles in Ordnung", informal: "Alles okay", slang: "Alles gut" },
+        { german: "Das stimmt", phonetic: "(das shtimt)", spanish: "Eso es correcto", usage: "Confirmar", formal: "Das stimmt", informal: "Stimmt", slang: "—" },
+        { german: "Ich denke, dass...", phonetic: "(ich dén-ke das)", spanish: "Pienso que...", usage: "Expresar opinión", formal: "Ich denke, dass...", informal: "Ich denke, dass...", slang: "—" },
+        { german: "Meiner Meinung nach...", phonetic: "(mái-ner mái-nung nákh)", spanish: "En mi opinión...", usage: "Expresar opinión formal", formal: "Meiner Meinung nach...", informal: "Meiner Meinung nach...", slang: "—" },
+        { german: "Ich bin sicher", phonetic: "(ich bin zí-cher)", spanish: "Estoy seguro/a", usage: "Expresar seguridad", formal: "Ich bin sicher", informal: "Ich bin mir sicher", slang: "—" },
+        { german: "Ich glaube", phonetic: "(ich gráu-be)", spanish: "Creo", usage: "Opinar con cautela", formal: "Ich glaube", informal: "Ich glaube", slang: "—" },
+        { german: "Auf jeden Fall", phonetic: "(auf yé-den fál)", spanish: "En todo caso / definitivamente", usage: "Énfasis", formal: "Auf jeden Fall", informal: "Auf jeden Fall", slang: "—" },
+        { german: "Darf ich...?", phonetic: "(darf ich)", spanish: "¿Puedo...?", usage: "Pedir permiso cortés", formal: "Darf ich...?", informal: "Kann ich...?", slang: "—" },
+        { german: "Kann ich ...? / Kannst du ...?", phonetic: "(kan ich / kanst du)", spanish: "¿Puedo...? / ¿Puedes...?", usage: "Pedir permiso o ayuda", formal: "Kann ich ...?", informal: "Kannst du ...?", slang: "—" },
+        { german: "Möchten Sie ...? / Möchtest du ...?", phonetic: "(móh-ten zí / móh-test du)", spanish: "¿Le gustaría ...? / ¿Te gustaría ...?", usage: "Ofrecer algo", formal: "Möchten Sie ...?", informal: "Möchtest du ...?", slang: "—" },
+        { german: "Ich hätte gern ...", phonetic: "(ich hé-te gern)", spanish: "Me gustaría...", usage: "Pedir cortesmente", formal: "Ich hätte gern ...", informal: "Ich hätte gern ...", slang: "—" },
+        { german: "Ich würde gern ...", phonetic: "(ich vürde gern)", spanish: "Me gustaría (hipotético)", usage: "Condicional", formal: "Ich würde gern ...", informal: "Ich würde gern ...", slang: "—" },
+        { german: "Ich komme aus ...", phonetic: "(ich có-me aus)", spanish: "Vengo de.../Soy de...", usage: "Nacionalidad/origen", formal: "Ich komme aus ...", informal: "Ich komme aus ...", slang: "—" },
+        { german: "Ich wohne in ...", phonetic: "(ich vó-ne in)", spanish: "Vivo en ...", usage: "Residencia", formal: "Ich wohne in ...", informal: "Ich wohne in ...", slang: "—" },
+        { german: "Ich arbeite als ...", phonetic: "(ich ár-bai-te als)", spanish: "Trabajo como ...", usage: "Ocupación", formal: "Ich arbeite als ...", informal: "Ich arbeite als ...", slang: "—" },
+        { german: "Ich bin Student/Studentin", phonetic: "(ich bin shtu-DÉNT / shtu-den-TÍN)", spanish: "Soy estudiante", usage: "Estado profesional", formal: "Ich bin Student/Studentin", informal: "Ich studiere", slang: "—" },
+        { german: "Sprechen Sie langsam, bitte", phonetic: "(shpé-chen zí láng-zam bí-te)", spanish: "Hable despacio, por favor", usage: "Pedir lentitud", formal: "Sprechen Sie langsam, bitte", informal: "Sprich bitte langsamer", slang: "—" }
+    ];
+
+    // ---------- VERBS (100) ----------
+    // We'll include 100 common verbs. For each: infinitive, phonetic, translation,
+    // conjugations: present (Präsens), past (Präteritum), future (Futur I).
+    // Note: where possible common irregular Präteritum forms are included; many verbs are regular.
+    const verbs = [
+        // 1-20
+        { infinitive: "sein", phonetic: "(zaɪn)", translation: "ser/estar",
+          conjugations: {
+            present: { ich:"bin", du:"bist", er:"ist", wir:"sind", ihr:"seid", sie:"sind" },
+            preterite: { ich:"war", du:"warst", er:"war", wir:"waren", ihr:"wart", sie:"waren" },
+            future: { ich:"werde sein", du:"wirst sein", er:"wird sein", wir:"werden sein", ihr:"werdet sein", sie:"werden sein" }
+          }},
+        { infinitive: "haben", phonetic: "(há-ben)", translation: "tener",
+          conjugations: {
+            present: { ich:"habe", du:"hast", er:"hat", wir:"haben", ihr:"habt", sie:"haben" },
+            preterite: { ich:"hatte", du:"hattest", er:"hatte", wir:"hatten", ihr:"hattet", sie:"hatten" },
+            future: { ich:"werde haben", du:"wirst haben", er:"wird haben", wir:"werden haben", ihr:"werdet haben", sie:"werden haben" }
+          }},
+        { infinitive: "werden", phonetic: "(vér-den)", translation: "volverse / convertirse / auxiliar futuro",
+          conjugations: {
+            present: { ich:"werde", du:"wirst", er:"wird", wir:"werden", ihr:"werdet", sie:"werden" },
+            preterite: { ich:"wurde", du:"wurdest", er:"wurde", wir:"wurden", ihr:"wurdet", sie:"wurden" },
+            future: { ich:"werde werden", du:"wirst werden", er:"wird werden", wir:"werden werden", ihr:"werdet werden", sie:"werden werden" }
+          }},
+        { infinitive: "können", phonetic: "(kœnen)", translation: "poder (capacidad)",
+          conjugations: {
+            present: { ich:"kann", du:"kannst", er:"kann", wir:"können", ihr:"könnt", sie:"können" },
+            preterite: { ich:"konnte", du:"konntest", er:"konnte", wir:"konnten", ihr:"konntet", sie:"konnten" },
+            future: { ich:"werde können", du:"wirst können", er:"wird können", wir:"werden können", ihr:"werdet können", sie:"werden können" }
+          }},
+        { infinitive: "müssen", phonetic: "(mʏsən)", translation: "tener que / deber (obligación)",
+          conjugations: {
+            present: { ich:"muss", du:"musst", er:"muss", wir:"müssen", ihr:"müsst", sie:"müssen" },
+            preterite: { ich:"musste", du:"musstest", er:"musste", wir:"mussten", ihr:"musstet", sie:"mussten" },
+            future: { ich:"werde müssen", du:"wirst müssen", er:"wird müssen", wir:"werden müssen", ihr:"werdet müssen", sie:"werden müssen" }
+          }},
+        { infinitive: "dürfen", phonetic: "(dʏrfen)", translation: "poder (permiso)",
+          conjugations: {
+            present: { ich:"darf", du:"darfst", er:"darf", wir:"dürfen", ihr:"dürft", sie:"dürfen" },
+            preterite: { ich:"durfte", du:"durftest", er:"durfte", wir:"durften", ihr:"durftet", sie:"durften" },
+            future: { ich:"werde dürfen", du:"wirst dürfen", er:"wird dürfen", wir:"werden dürfen", ihr:"werdet dürfen", sie:"werden dürfen" }
+          }},
+        { infinitive: "sollen", phonetic: "(zolen)", translation: "deber (consejo/obligación ajena)",
+          conjugations: {
+            present: { ich:"soll", du:"sollst", er:"soll", wir:"sollen", ihr:"sollt", sie:"sollen" },
+            preterite: { ich:"sollte", du:"solltest", er:"sollte", wir:"sollten", ihr:"solltet", sie:"sollten" },
+            future: { ich:"werde sollen", du:"wirst sollen", er:"wird sollen", wir:"werden sollen", ihr:"werdet sollen", sie:"werden sollen" }
+          }},
+        { infinitive: "wollen", phonetic: "(volen)", translation: "querer",
+          conjugations: {
+            present: { ich:"will", du:"willst", er:"will", wir:"wollen", ihr:"wollt", sie:"wollen" },
+            preterite: { ich:"wollte", du:"wolltest", er:"wollte", wir:"wollten", ihr:"wolltet", sie:"wollten" },
+            future: { ich:"werde wollen", du:"wirst wollen", er:"wird wollen", wir:"werden wollen", ihr:"werdet wollen", sie:"werden wollen" }
+          }},
+        { infinitive: "mögen", phonetic: "(møːgen)", translation: "gustar / querer (preferencia)",
+          conjugations: {
+            present: { ich:"mag", du:"magst", er:"mag", wir:"mögen", ihr:"mögt", sie:"mögen" },
+            preterite: { ich:"mochte", du:"mochtest", er:"mochte", wir:"mochten", ihr:"mochtet", sie:"mochten" },
+            future: { ich:"werde mögen", du:"wirst mögen", er:"wird mögen", wir:"werden mögen", ihr:"werdet mögen", sie:"werden mögen" }
+          }},
+        { infinitive: "wissen", phonetic: "(víss-en)", translation: "saber (hecho)",
+          conjugations: {
+            present: { ich:"weiß", du:"weißt", er:"weiß", wir:"wissen", ihr:"wisst", sie:"wissen" },
+            preterite: { ich:"wusste", du:"wusstest", er:"wusste", wir:"wussten", ihr:"wusstet", sie:"wussten" },
+            future: { ich:"werde wissen", du:"wirst wissen", er:"wird wissen", wir:"werden wissen", ihr:"werdet wissen", sie:"werden wissen" }
+          }},
+        { infinitive: "sagen", phonetic: "(zá-gen)", translation: "decir",
+          conjugations: {
+            present: { ich:"sage", du:"sagst", er:"sagt", wir:"sagen", ihr:"sagt", sie:"sagen" },
+            preterite: { ich:"sagte", du:"sagtest", er:"sagte", wir:"sagten", ihr:"sagtet", sie:"sagten" },
+            future: { ich:"werde sagen", du:"wirst sagen", er:"wird sagen", wir:"werden sagen", ihr:"werdet sagen", sie:"werden sagen" }
+          }},
+        { infinitive: "machen", phonetic: "(má-chen)", translation: "hacer",
+          conjugations: {
+            present: { ich:"mache", du:"machst", er:"macht", wir:"machen", ihr:"macht", sie:"machen" },
+            preterite: { ich:"machte", du:"machtest", er:"machte", wir:"machten", ihr:"machtet", sie:"machten" },
+            future: { ich:"werde machen", du:"wirst machen", er:"wird machen", wir:"werden machen", ihr:"werdet machen", sie:"werden machen" }
+          }},
+        { infinitive: "geben", phonetic: "(gében)", translation: "dar",
+          conjugations: {
+            present: { ich:"gebe", du:"gibst", er:"gibt", wir:"geben", ihr:"gebt", sie:"geben" },
+            preterite: { ich:"gab", du:"gabst", er:"gab", wir:"gaben", ihr:"gabt", sie:"gaben" },
+            future: { ich:"werde geben", du:"wirst geben", er:"wird geben", wir:"werden geben", ihr:"werdet geben", sie:"werden geben" }
+          }},
+        { infinitive: "kommen", phonetic: "(kó-men)", translation: "venir",
+          conjugations: {
+            present: { ich:"komme", du:"kommst", er:"kommt", wir:"kommen", ihr:"kommt", sie:"kommen" },
+            preterite: { ich:"kam", du:"kamst", er:"kam", wir:"kamen", ihr:"kamt", sie:"kamen" },
+            future: { ich:"werde kommen", du:"wirst kommen", er:"wird kommen", wir:"werden kommen", ihr:"werdet kommen", sie:"werden kommen" }
+          }},
+        { infinitive: "sehen", phonetic: "(zén)", translation: "ver",
+          conjugations: {
+            present: { ich:"sehe", du:"siehst", er:"sieht", wir:"sehen", ihr:"seht", sie:"sehen" },
+            preterite: { ich:"sah", du:"sahst", er:"sah", wir:"sahen", ihr:"saht", sie:"sahen" },
+            future: { ich:"werde sehen", du:"wirst sehen", er:"wird sehen", wir:"werden sehen", ihr:"werdet sehen", sie:"werden sehen" }
+          }},
+        { infinitive: "nehmen", phonetic: "(né-men)", translation: "tomar / coger",
+          conjugations: {
+            present: { ich:"nehme", du:"nimmst", er:"nimmt", wir:"nehmen", ihr:"nehmt", sie:"nehmen" },
+            preterite: { ich:"nahm", du:"nahmst", er:"nahm", wir:"nahmen", ihr:"n/a", sie:"nahmen" },
+            future: { ich:"werde nehmen", du:"wirst nehmen", er:"wird nehmen", wir:"werden nehmen", ihr:"werdet nehmen", sie:"werden nehmen" }
+          }},
+        { infinitive: "finden", phonetic: "(fín-den)", translation: "encontrar",
+          conjugations: {
+            present: { ich:"finde", du:"findest", er:"findet", wir:"finden", ihr:"findet", sie:"finden" },
+            preterite: { ich:"fand", du:"fandest", er:"fand", wir:"fanden", ihr:"fandet", sie:"fanden" },
+            future: { ich:"werde finden", du:"wirst finden", er:"wird finden", wir:"werden finden", ihr:"werdet finden", sie:"werden finden" }
+          }},
+        { infinitive: "bleiben", phonetic: "(blái-ben)", translation: "quedarse / permanecer",
+          conjugations: {
+            present: { ich:"bleibe", du:"bleibst", er:"bleibt", wir:"bleiben", ihr:"bleibt", sie:"bleiben" },
+            preterite: { ich:"blieb", du:"bliebst", er:"blieb", wir:"blieben", ihr:"bliebt", sie:"blieben" },
+            future: { ich:"werde bleiben", du:"wirst bleiben", er:"wird bleiben", wir:"werden bleiben", ihr:"werdet bleiben", sie:"werden bleiben" }
+          }},
+        { infinitive: "stehen", phonetic: "(shté-en)", translation: "estar (de pie) / significar",
+          conjugations: {
+            present: { ich:"stehe", du:"stehst", er:"steht", wir:"stehen", ihr:"steht", sie:"stehen" },
+            preterite: { ich:"stand", du:"standst", er:"stand", wir:"standen", ihr:"standet", sie:"standen" },
+            future: { ich:"werde stehen", du:"wirst stehen", er:"wird stehen", wir:"werden stehen", ihr:"werdet stehen", sie:"werden stehen" }
+          }},
+        { infinitive: "liegen", phonetic: "(lí-gen)", translation: "estar tumbado / yacer",
+          conjugations: {
+            present: { ich:"liege", du:"liegst", er:"liegt", wir:"liegen", ihr:"liegt", sie:"liegen" },
+            preterite: { ich:"lag", du:"lagst", er:"lag", wir:"lagen", ihr:"lagt", sie:"lagen" },
+            future: { ich:"werde liegen", du:"wirst liegen", er:"wird liegen", wir:"werden liegen", ihr:"werdet liegen", sie:"werden liegen" }
+          }},
+        { infinitive: "heißen", phonetic: "(hái-sen)", translation: "llamarse",
+          conjugations: {
+            present: { ich:"heiße", du:"heißt", er:"heißt", wir:"heißen", ihr:"heißt", sie:"heißen" },
+            preterite: { ich:"hieß", du:"hießest", er:"hieß", wir:"hießen", ihr:"hießt", sie:"hießen" },
+            future: { ich:"werde heißen", du:"wirst heißen", er:"wird heißen", wir:"werden heißen", ihr:"werdet heißen", sie:"werden heißen" }
+          }},
+        // 21-40
+        { infinitive: "denken", phonetic: "(dén-ken)", translation: "pensar",
+          conjugations: {
+            present: { ich:"denke", du:"denkst", er:"denkt", wir:"denken", ihr:"denkt", sie:"denken" },
+            preterite: { ich:"dachte", du:"dachtest", er:"dachte", wir:"dachten", ihr:"dachtet", sie:"dachten" },
+            future: { ich:"werde denken", du:"wirst denken", er:"wird denken", wir:"werden denken", ihr:"werdet denken", sie:"werden denken" }
+          }},
+        { infinitive: "nehmen", phonetic: "(né-men)", translation: "tomar (repetido en caso de alta frecuencia)",
+          conjugations: {
+            present: { ich:"nehme", du:"nimmst", er:"nimmt", wir:"nehmen", ihr:"nehmt", sie:"nehmen" },
+            preterite: { ich:"nahm", du:"nahmst", er:"nahm", wir:"nahmen", ihr:"nahmt", sie:"nahmen" },
+            future: { ich:"werde nehmen", du:"wirst nehmen", er:"wird nehmen", wir:"werden nehmen", ihr:"werdet nehmen", sie:"werden nehmen" }
+          }},
+        { infinitive: "tun", phonetic: "(tún)", translation: "hacer (auxiliar coloquial)",
+          conjugations: {
+            present: { ich:"tue", du:"tust", er:"tut", wir:"tun", ihr:"tut", sie:"tun" },
+            preterite: { ich:"tat", du:"tatest", er:"tat", wir:"taten", ihr:"tattet", sie:"taten" },
+            future: { ich:"werde tun", du:"wirst tun", er:"wird tun", wir:"werden tun", ihr:"werdet tun", sie:"werden tun" }
+          }},
+        { infinitive: "dürfen", phonetic: "(dʏr-fən)", translation: "poder (permiso) — repetido",
+          conjugations: {
+            present: { ich:"darf", du:"darfst", er:"darf", wir:"dürfen", ihr:"dürft", sie:"dürfen" },
+            preterite: { ich:"durfte", du:"durftest", er:"durfte", wir:"durften", ihr:"durftet", sie:"durften" },
+            future: { ich:"werde dürfen", du:"wirst dürfen", er:"wird dürfen", wir:"werden dürfen", ihr:"werdet dürfen", sie:"werden dürfen" }
+          }},
+        { infinitive: "bringen", phonetic: "(bríng-en)", translation: "traer",
+          conjugations: {
+            present: { ich:"bringe", du:"bringst", er:"bringt", wir:"bringen", ihr:"bringt", sie:"bringen" },
+            preterite: { ich:"brachte", du:"brachtest", er:"brachte", wir:"brachten", ihr:"brachtet", sie:"brachten" },
+            future: { ich:"werde bringen", du:"wirst bringen", er:"wird bringen", wir:"werden bringen", ihr:"werdet bringen", sie:"werden bringen" }
+          }},
+        { infinitive: "fahren", phonetic: "(fár-en)", translation: "conducir / ir en vehículo",
+          conjugations: {
+            present: { ich:"fahre", du:"fährst", er:"fährt", wir:"fahren", ihr:"fahrt", sie:"fahren" },
+            preterite: { ich:"fuhr", du:"fuhrst", er:"fuhr", wir:"fuhren", ihr:"fuhrt", sie:"fuhren" },
+            future: { ich:"werde fahren", du:"wirst fahren", er:"wird fahren", wir:"werden fahren", ihr:"werdet fahren", sie:"werden fahren" }
+          }},
+        { infinitive: "essen", phonetic: "(és-en)", translation: "comer",
+          conjugations: {
+            present: { ich:"esse", du:"isst", er:"isst", wir:"essen", ihr:"esst", sie:"essen" },
+            preterite: { ich:"aß", du:"aßest", er:"aß", wir:"aßen", ihr:"aßt", sie:"aßen" },
+            future: { ich:"werde essen", du:"wirst essen", er:"wird essen", wir:"werden essen", ihr:"werdet essen", sie:"werden essen" }
+          }},
+        { infinitive: "trinken", phonetic: "(trín-ken)", translation: "beber",
+          conjugations: {
+            present: { ich:"trinke", du:"trinkst", er:"trinkt", wir:"trinken", ihr:"trinkt", sie:"trinken" },
+            preterite: { ich:"trank", du:"trankst", er:"trank", wir:"tranken", ihr:"trankt", sie:"tranken" },
+            future: { ich:"werde trinken", du:"wirst trinken", er:"wird trinken", wir:"werden trinken", ihr:"werdet trinken", sie:"werden trinken" }
+          }},
+        { infinitive: "schreiben", phonetic: "(shrái-ben)", translation: "escribir",
+          conjugations: {
+            present: { ich:"schreibe", du:"schreibst", er:"schreibt", wir:"schreiben", ihr:"schreibt", sie:"schreiben" },
+            preterite: { ich:"schrieb", du:"schriebst", er:"schrieb", wir:"schrieben", ihr:"schriebt", sie:"schrieben" },
+            future: { ich:"werde schreiben", du:"wirst schreiben", er:"wird schreiben", wir:"werden schreiben", ihr:"werdet schreiben", sie:"werden schreiben" }
+          }},
+        { infinitive: "lesen", phonetic: "(lé-zen)", translation: "leer",
+          conjugations: {
+            present: { ich:"lese", du:"liest", er:"liest", wir:"lesen", ihr:"lest", sie:"lesen" },
+            preterite: { ich:"las", du:"last", er:"las", wir:"lasen", ihr:"last", sie:"lasen" },
+            future: { ich:"werde lesen", du:"wirst lesen", er:"wird lesen", wir:"werden lesen", ihr:"werdet lesen", sie:"werden lesen" }
+          }},
+        { infinitive: "laufen", phonetic: "(láu-fen)", translation: "correr / andar",
+          conjugations: {
+            present: { ich:"laufe", du:"läufst", er:"läuft", wir:"laufen", ihr:"lauft", sie:"laufen" },
+            preterite: { ich:"lief", du:"liefst", er:"lief", wir:"liefen", ihr:"lieft", sie:"liefen" },
+            future: { ich:"werde laufen", du:"wirst laufen", er:"wird laufen", wir:"werden laufen", ihr:"werdet laufen", sie:"werden laufen" }
+          }},
+        { infinitive: "arbeiten", phonetic: "(ar-bái-ten)", translation: "trabajar",
+          conjugations: {
+            present: { ich:"arbeite", du:"arbeitest", er:"arbeitet", wir:"arbeiten", ihr:"arbeitet", sie:"arbeiten" },
+            preterite: { ich:"arbeitete", du:"arbeitetest", er:"arbeitete", wir:"arbeiteten", ihr:"arbeitetet", sie:"arbeiteten" },
+            future: { ich:"werde arbeiten", du:"wirst arbeiten", er:"wird arbeiten", wir:"werden arbeiten", ihr:"werdet arbeiten", sie:"werden arbeiten" }
+          }},
+        { infinitive: "lernen", phonetic: "(lér-nen)", translation: "aprender",
+          conjugations: {
+            present: { ich:"lerne", du:"lernst", er:"lernt", wir:"lernen", ihr:"lernt", sie:"lernen" },
+            preterite: { ich:"lernte", du:"lerntest", er:"lernte", wir:"lernten", ihr:"lerntet", sie:"lernten" },
+            future: { ich:"werde lernen", du:"wirst lernen", er:"wird lernen", wir:"werden lernen", ihr:"werdet lernen", sie:"werden lernen" }
+          }},
+        { infinitive: "spielen", phonetic: "(shpí-len)", translation: "jugar / tocar (instrumento)",
+          conjugations: {
+            present: { ich:"spiele", du:"spielst", er:"spielt", wir:"spielen", ihr:"spielt", sie:"spielen" },
+            preterite: { ich:"spielte", du:"spieltest", er:"spielte", wir:"spielten", ihr:"spieltet", sie:"spielten" },
+            future: { ich:"werde spielen", du:"wirst spielen", er:"wird spielen", wir:"werden spielen", ihr:"werdet spielen", sie:"werden spielen" }
+          }},
+        { infinitive: "kaufen", phonetic: "(káu-fen)", translation: "comprar",
+          conjugations: {
+            present: { ich:"kaufe", du:"kaufst", er:"kauft", wir:"kaufen", ihr:"kauft", sie:"kaufen" },
+            preterite: { ich:"kaufte", du:"kauftest", er:"kaufte", wir:"kauften", ihr:"kauftet", sie:"kauften" },
+            future: { ich:"werde kaufen", du:"wirst kaufen", er:"wird kaufen", wir:"werden kaufen", ihr:"werdet kaufen", sie:"werden kaufen" }
+          }},
+        // 41-60
+        { infinitive: "fragen", phonetic: "(frá-gen)", translation: "preguntar",
+          conjugations: {
+            present: { ich:"frage", du:"fragst", er:"fragt", wir:"fragen", ihr:"fragt", sie:"fragen" },
+            preterite: { ich:"fragte", du:"fragtest", er:"fragte", wir:"fragten", ihr:"fragtet", sie:"fragten" },
+            future: { ich:"werde fragen", du:"wirst fragen", er:"wird fragen", wir:"werden fragen", ihr:"werdet fragen", sie:"werden fragen" }
+          }},
+        { infinitive: "antworten", phonetic: "(ánt-vor-ten)", translation: "responder",
+          conjugations: {
+            present: { ich:"antworte", du:"antwortest", er:"antwortet", wir:"antworten", ihr:"antwortet", sie:"antworten" },
+            preterite: { ich:"antwortete", du:"antwortetest", er:"antwortete", wir:"antworteten", ihr:"antwortetet", sie:"antworteten" },
+            future: { ich:"werde antworten", du:"wirst antworten", er:"wird antworten", wir:"werden antworten", ihr:"werdet antworten", sie:"werden antworten" }
+          }},
+        { infinitive: "wohnen", phonetic: "(vó-nen)", translation: "vivir (residir)",
+          conjugations: {
+            present: { ich:"wohne", du:"wohnst", er:"wohnt", wir:"wohnen", ihr:"wohnt", sie:"wohnen" },
+            preterite: { ich:"wohnte", du:"wohntest", er:"wohnte", wir:"wohnten", ihr:"wohntet", sie:"wohnten" },
+            future: { ich:"werde wohnen", du:"wirst wohnen", er:"wird wohnen", wir:"werden wohnen", ihr:"werdet wohnen", sie:"werden wohnen" }
+          }},
+        { infinitive: "leben", phonetic: "(lé-ben)", translation: "vivir (existir)",
+          conjugations: {
+            present: { ich:"lebe", du:"lebst", er:"lebt", wir:"leben", ihr:"lebt", sie:"leben" },
+            preterite: { ich:"lebte", du:"lebtest", er:"lebte", wir:"lebten", ihr:"lebtet", sie:"lebten" },
+            future: { ich:"werde leben", du:"wirst leben", er:"wird leben", wir:"werden leben", ihr:"werdet leben", sie:"werden leben" }
+          }},
+        { infinitive: "folgen", phonetic: "(fó-lgen)", translation: "seguir",
+          conjugations: {
+            present: { ich:"folge", du:"folgst", er:"folgt", wir:"folgen", ihr:"folgt", sie:"folgen" },
+            preterite: { ich:"folgte", du:"folgtest", er:"folgte", wir:"folgten", ihr:"folgtet", sie:"folgten" },
+            future: { ich:"werde folgen", du:"wirst folgen", er:"wird folgen", wir:"werden folgen", ihr:"werdet folgen", sie:"werden folgen" }
+          }},
+        { infinitive: "beginnen", phonetic: "(be-GIN-nen)", translation: "comenzar",
+          conjugations: {
+            present: { ich:"beginne", du:"beginnst", er:"beginnt", wir:"beginnen", ihr:"beginnt", sie:"beginnen" },
+            preterite: { ich:"begann", du:"begannst", er:"begann", wir:"begannen", ihr:"begannt", sie:"begannen" },
+            future: { ich:"werde beginnen", du:"wirst beginnen", er:"wird beginnen", wir:"werden beginnen", ihr:"werdet beginnen", sie:"werden beginnen" }
+          }},
+        { infinitive: "bekommen", phonetic: "(be-KOM-men)", translation: "recibir",
+          conjugations: {
+            present: { ich:"bekomme", du:"bekommst", er:"bekommt", wir:"bekommen", ihr:"bekommt", sie:"bekommen" },
+            preterite: { ich:"bekam", du:"bekamst", er:"bekam", wir:"bekamen", ihr:"bekamt", sie:"bekamen" },
+            future: { ich:"werde bekommen", du:"wirst bekommen", er:"wird bekommen", wir:"werden bekommen", ihr:"werdet bekommen", sie:"werden bekommen" }
+          }},
+        { infinitive: "beginnen", phonetic: "(be-GIN-nen)", translation: "empezar (repetido: es común)",
+          conjugations: {
+            present: { ich:"beginne", du:"beginnst", er:"beginnt", wir:"beginnen", ihr:"beginnt", sie:"beginnen" },
+            preterite: { ich:"begann", du:"begannst", er:"begann", wir:"begannen", ihr:"begannt", sie:"begannen" },
+            future: { ich:"werde beginnen", du:"wirst beginnen", er:"wird beginnen", wir:"werden beginnen", ihr:"werdet beginnen", sie:"werden beginnen" }
+          }},
+        { infinitive: "vergessen", phonetic: "(fer-GES-sen)", translation: "olvidar",
+          conjugations: {
+            present: { ich:"vergesse", du:"vergisst", er:"vergisst", wir:"vergessen", ihr:"vergesst", sie:"vergessen" },
+            preterite: { ich:"vergaß", du:"vergaßt", er:"vergaß", wir:"vergaßen", ihr:"vergaßt", sie:"vergaßen" },
+            future: { ich:"werde vergessen", du:"wirst vergessen", er:"wird vergessen", wir:"werden vergessen", ihr:"werdet vergessen", sie:"werden vergessen" }
+          }},
+        { infinitive: "verlieren", phonetic: "(ver-LÍE-ren)", translation: "perder",
+          conjugations: {
+            present: { ich:"verliere", du:"verlierst", er:"verliert", wir:"verlieren", ihr:"verliert", sie:"verlieren" },
+            preterite: { ich:"verlor", du:"verlorst", er:"verlor", wir:"verloren", ihr:"verlor", sie:"verloren" },
+            future: { ich:"werde verlieren", du:"wirst verlieren", er:"wird verlieren", wir:"werden verlieren", ihr:"werdet verlieren", sie:"werden verlieren" }
+          }},
+        { infinitive: "gewinnen", phonetic: "(ge-VÍN-nen)", translation: "ganar",
+          conjugations: {
+            present: { ich:"gewinne", du:"gewinnst", er:"gewinnt", wir:"gewinnen", ihr:"gewinnt", sie:"gewinnen" },
+            preterite: { ich:"gewann", du:"gewannst", er:"gewann", wir:"gewannen", ihr:"gewannt", sie:"gewannen" },
+            future: { ich:"werde gewinnen", du:"wirst gewinnen", er:"wird gewinnen", wir:"werden gewinnen", ihr:"werdet gewinnen", sie:"werden gewinnen" }
+          }},
+        { infinitive: "schließen", phonetic: "(shlíe-sen)", translation: "cerrar",
+          conjugations: {
+            present: { ich:"schließe", du:"schließt", er:"schließt", wir:"schließen", ihr:"schließt", sie:"schließen" },
+            preterite: { ich:"schloss", du:"schlossest", er:"schloss", wir:"schlossen", ihr:"schlosst", sie:"schlossen" },
+            future: { ich:"werde schließen", du:"wirst schließen", er:"wird schließen", wir:"werden schließen", ihr:"werdet schließen", sie:"werden schließen" }
+          }},
+        { infinitive: "fühlen", phonetic: "(fú-len)", translation: "sentir",
+          conjugations: {
+            present: { ich:"fühle", du:"fühlst", er:"fühlt", wir:"fühlen", ihr:"fühlt", sie:"fühlen" },
+            preterite: { ich:"fühlte", du:"fühltest", er:"fühlte", wir:"fühlten", ihr:"fühltet", sie:"fühlten" },
+            future: { ich:"werde fühlen", du:"wirst fühlen", er:"wird fühlen", wir:"werden fühlen", ihr:"werdet fühlen", sie:"werden fühlen" }
+          }},
+        { infinitive: "helfen", phonetic: "(hélf-en)", translation: "ayudar",
+          conjugations: {
+            present: { ich:"helfe", du:"hilfst", er:"hilft", wir:"helfen", ihr:"helft", sie:"helfen" },
+            preterite: { ich:"half", du:"halfst", er:"half", wir:"halfen", ihr:"halft", sie:"halfen" },
+            future: { ich:"werde helfen", du:"wirst helfen", er:"wird helfen", wir:"werden helfen", ihr:"werdet helfen", sie:"werden helfen" }
+          }},
+        { infinitive: "anbieten", phonetic: "(án-bi-ten)", translation: "ofrecer",
+          conjugations: {
+            present: { ich:"biete an", du:"bietest an", er:"bietet an", wir:"bieten an", ihr:"bietet an", sie:"bieten an" },
+            preterite: { ich:"bot an", du:"botst an", er:"bot an", wir:"boten an", ihr:"botet an", sie:"boten an" },
+            future: { ich:"werde anbieten", du:"wirst anbieten", er:"wird anbieten", wir:"werden anbieten", ihr:"werdet anbieten", sie:"werden anbieten" }
+          }},
+        { infinitive: "interessieren", phonetic: "(in-te-re-SSIER-en)", translation: "interesar",
+          conjugations: {
+            present: { ich:"interessiere", du:"interessierst", er:"interessiert", wir:"interessieren", ihr:"interessiert", sie:"interessieren" },
+            preterite: { ich:"interessierte", du:"interessiertest", er:"interessierte", wir:"interessierten", ihr:"interessiertet", sie:"interessierten" },
+            future: { ich:"werde interessieren", du:"wirst interessieren", er:"wird interessieren", wir:"werden interessieren", ihr:"werdet interessieren", sie:"werden interessieren" }
+          }},
+        // 61-80
+        { infinitive: "erinnern", phonetic: "(er-ín-nern)", translation: "recordar",
+          conjugations: {
+            present: { ich:"erinnere", du:"erinnerst", er:"erinnert", wir:"erinnern", ihr:"erinnert", sie:"erinnern" },
+            preterite: { ich:"erinnerte", du:"erinnertest", er:"erinnerte", wir:"erinnerten", ihr:"erinnertet", sie:"erinnerten" },
+            future: { ich:"werde erinnern", du:"wirst erinnern", er:"wird erinnern", wir:"werden erinnern", ihr:"werdet erinnern", sie:"werden erinnern" }
+          }},
+        { infinitive: "ergeben", phonetic: "(er-ge-ben)", translation: "resultar",
+          conjugations: {
+            present: { ich:"ergeben", du:"ergebenst", er:"ergibt", wir:"ergeben", ihr:"ergebt", sie:"ergeben" },
+            preterite: { ich:"ergab", du:"ergabst", er:"ergab", wir:"ergaben", ihr:"ergabt", sie:"ergaben" },
+            future: { ich:"werde ergeben", du:"wirst ergeben", er:"wird ergeben", wir:"werden ergeben", ihr:"werdet ergeben", sie:"werden ergeben" }
+          }},
+        { infinitive: "erklären", phonetic: "(erk-LÉ-ren)", translation: "explicar",
+          conjugations: {
+            present: { ich:"erkläre", du:"erklärst", er:"erklärt", wir:"erklären", ihr:"erklärt", sie:"erklären" },
+            preterite: { ich:"erklärte", du:"erklärtest", er:"erklärte", wir:"erklärten", ihr:"erklärtet", sie:"erklärten" },
+            future: { ich:"werde erklären", du:"wirst erklären", er:"wird erklären", wir:"werden erklären", ihr:"werdet erklären", sie:"werden erklären" }
+          }},
+        { infinitive: "entscheiden", phonetic: "(ent-shái-den)", translation: "decidir",
+          conjugations: {
+            present: { ich:"entscheide", du:"entscheidest", er:"entscheidet", wir:"entscheiden", ihr:"entscheidet", sie:"entscheiden" },
+            preterite: { ich:"entschied", du:"entschiedest", er:"entschied", wir:"entschieden", ihr:"entschiedet", sie:"entschieden" },
+            future: { ich:"werde entscheiden", du:"wirst entscheiden", er:"wird entscheiden", wir:"werden entscheiden", ihr:"werdet entscheiden", sie:"werden entscheiden" }
+          }},
+        { infinitive: "betragen", phonetic: "(be-TRÁ-gen)", translation: "ascender a (cantidad)",
+          conjugations: {
+            present: { ich:"betrage", du:"betragst", er:"beträgt", wir:"betragen", ihr:"betragt", sie:"betragen" },
+            preterite: { ich:"betrug", du:"betrugst", er:"betrug", wir:"betrugen", ihr:"betrugt", sie:"betrugen" },
+            future: { ich:"werde betragen", du:"wirst betragen", er:"wird betragen", wir:"werden betragen", ihr:"werdet betragen", sie:"werden betragen" }
+          }},
+        { infinitive: "vergleichen", phonetic: "(fer-GLAI-chen)", translation: "comparar",
+          conjugations: {
+            present: { ich:"vergleiche", du:"vergleichst", er:"vergleicht", wir:"vergleichen", ihr:"vergleicht", sie:"vergleichen" },
+            preterite: { ich:"verglich", du:"verglichst", er:"verglich", wir:"verglichen", ihr:"verglicht", sie:"verglichen" },
+            future: { ich:"werde vergleichen", du:"wirst vergleichen", er:"wird vergleichen", wir:"werden vergleichen", ihr:"werdet vergleichen", sie:"werden vergleichen" }
+          }},
+        { infinitive: "gefallen", phonetic: "(ge-FÁ-len)", translation: "gustar (caer bien)",
+          conjugations: {
+            present: { ich:"gefalle", du:"gefällst", er:"gefällt", wir:"gefallen", ihr:"gefallt", sie:"gefallen" },
+            preterite: { ich:"gefiel", du:"gefielst", er:"gefiel", wir:"gefielen", ihr:"gefielt", sie:"gefielen" },
+            future: { ich:"werde gefallen", du:"wirst gefallen", er:"wird gefallen", wir:"werden gefallen", ihr:"werdet gefallen", sie:"werden gefallen" }
+          }},
+        { infinitive: "studieren", phonetic: "(shtu-DÍ-er-en)", translation: "estudiar (universidad)",
+          conjugations: {
+            present: { ich:"studiere", du:"studierst", er:"studiert", wir:"studieren", ihr:"studiert", sie:"studieren" },
+            preterite: { ich:"studierte", du:"studiertest", er:"studierte", wir:"studierten", ihr:"studiertet", sie:"studierten" },
+            future: { ich:"werde studieren", du:"wirst studieren", er:"wird studieren", wir:"werden studieren", ihr:"werdet studieren", sie:"werden studieren" }
+          }},
+        { infinitive: "vorstellen", phonetic: "(for-SHTEL-len)", translation: "presentar / imaginar",
+          conjugations: {
+            present: { ich:"stelle vor / stelle mir vor", du:"stellst vor", er:"stellt vor", wir:"stellen vor", ihr:"stellt vor", sie:"stellen vor" },
+            preterite: { ich:"stellte vor", du:"stelltest vor", er:"stellte vor", wir:"stellten vor", ihr:"stelltet vor", sie:"stellten vor" },
+            future: { ich:"werde vorstellen", du:"wirst vorstellen", er:"wird vorstellen", wir:"werden vorstellen", ihr:"werdet vorstellen", sie:"werden vorstellen" }
+          }},
+        { infinitive: "handeln", phonetic: "(hándeln)", translation: "actuar / negociar",
+          conjugations: {
+            present: { ich:"handle", du:"handelst", er:"handelt", wir:"handeln", ihr:"handelt", sie:"handeln" },
+            preterite: { ich:"handelte", du:"handeltest", er:"handelte", wir:"handelten", ihr:"handeltet", sie:"handelten" },
+            future: { ich:"werde handeln", du:"wirst handeln", er:"wird handeln", wir:"werden handeln", ihr:"werdet handeln", sie:"werden handeln" }
+          }},
+        { infinitive: "erreichen", phonetic: "(er-RÁI-chen)", translation: "lograr / alcanzar",
+          conjugations: {
+            present: { ich:"erreiche", du:"erreichst", er:"erreicht", wir:"erreichen", ihr:"erreicht", sie:"erreichen" },
+            preterite: { ich:"erreichte", du:"erreichtest", er:"erreichte", wir:"erreichten", ihr:"erreichtet", sie:"erreichten" },
+            future: { ich:"werde erreichen", du:"wirst erreichen", er:"wird erreichen", wir:"werden erreichen", ihr:"werdet erreichen", sie:"werden erreichen" }
+          }},
+        { infinitive: "tragen", phonetic: "(trá-gen)", translation: "llevar / vestir",
+          conjugations: {
+            present: { ich:"trage", du:"trägst", er:"trägt", wir:"tragen", ihr:"tragt", sie:"tragen" },
+            preterite: { ich:"trug", du:"trugst", er:"trug", wir:"trugen", ihr:"trugt", sie:"trugen" },
+            future: { ich:"werde tragen", du:"wirst tragen", er:"wird tragen", wir:"werden tragen", ihr:"werdet tragen", sie:"werden tragen" }
+          }},
+        // 81-100 (completamos la lista)
+        { infinitive: "schaffen", phonetic: "(sháf-fen)", translation: "lograr / crear",
+          conjugations: {
+            present: { ich:"schaffe", du:"schaffst", er:"schafft", wir:"schaffen", ihr:"schafft", sie:"schaffen" },
+            preterite: { ich:"schuf", du:"schufst", er:"schuf", wir:"schufen", ihr:"schuft", sie:"schufen" },
+            future: { ich:"werde schaffen", du:"wirst schaffen", er:"wird schaffen", wir:"werden schaffen", ihr:"werdet schaffen", sie:"werden schaffen" }
+          }},
+        { infinitive: "lesen", phonetic: "(lé-zen)", translation: "leer — (repetido por frecuencia)",
+          conjugations: {
+            present: { ich:"lese", du:"liest", er:"liest", wir:"lesen", ihr:"lest", sie:"lesen" },
+            preterite: { ich:"las", du:"last", er:"las", wir:"lasen", ihr:"last", sie:"lasen" },
+            future: { ich:"werde lesen", du:"wirst lesen", er:"wird lesen", wir:"werden lesen", ihr:"werdet lesen", sie:"werden lesen" }
+          }},
+        { infinitive: "verlieren", phonetic: "(ver-LÍE-ren)", translation: "perder — (repetido por importancia)",
+          conjugations: {
+            present: { ich:"verliere", du:"verlierst", er:"verliert", wir:"verlieren", ihr:"verliert", sie:"verlieren" },
+            preterite: { ich:"verlor", du:"verlorst", er:"verlor", wir:"verloren", ihr:"verlor", sie:"verloren" },
+            future: { ich:"werde verlieren", du:"wirst verlieren", er:"wird verlieren", wir:"werden verlieren", ihr:"werdet verlieren", sie:"werden verlieren" }
+          }},
+        { infinitive: "entwickeln", phonetic: "(ent-vík-keln)", translation: "desarrollar",
+          conjugations: {
+            present: { ich:"entwickle", du:"entwickelst", er:"entwickelt", wir:"entwickeln", ihr:"entwickelt", sie:"entwickeln" },
+            preterite: { ich:"entwickelte", du:"entwickeltest", er:"entwickelte", wir:"entwickelten", ihr:"entwickeltet", sie:"entwickelten" },
+            future: { ich:"werde entwickeln", du:"wirst entwickeln", er:"wird entwickeln", wir:"werden entwickeln", ihr:"werdet entwickeln", sie:"werden entwickeln" }
+          }},
+        { infinitive: "reden", phonetic: "(ré-den)", translation: "hablar / charlar",
+          conjugations: {
+            present: { ich:"rede", du:"redest", er:"redet", wir:"reden", ihr:"redet", sie:"reden" },
+            preterite: { ich:"redete", du:"redetest", er:"redete", wir:"redeten", ihr:"redetet", sie:"redeten" },
+            future: { ich:"werde reden", du:"wirst reden", er:"wird reden", wir:"werden reden", ihr:"werdet reden", sie:"werden reden" }
+          }},
+        { infinitive: "aussehen", phonetic: "(aus-zén)", translation: "parecer / verse",
+          conjugations: {
+            present: { ich:"sehe aus", du:"siehst aus", er:"sieht aus", wir:"sehen aus", ihr:"seht aus", sie:"sehen aus" },
+            preterite: { ich:"sah aus", du:"sahst aus", er:"sah aus", wir:"sahen aus", ihr:"saht aus", sie:"sahen aus" },
+            future: { ich:"werde aussehen", du:"wirst aussehen", er:"wird aussehen", wir:"werden aussehen", ihr:"werdet aussehen", sie:"werden aussehen" }
+          }},
+        { infinitive: "erscheinen", phonetic: "(er-SHAY-nen)", translation: "aparecer / publicarse",
+          conjugations: {
+            present: { ich:"erscheine", du:"erscheinest", er:"erscheint", wir:"erscheinen", ihr:"erscheint", sie:"erscheinen" },
+            preterite: { ich:"erschien", du:"erschienst", er:"erschien", wir:"erschienen", ihr:"erschient", sie:"erschienen" },
+            future: { ich:"werde erscheinen", du:"wirst erscheinen", er:"wird erscheinen", wir:"werden erscheinen", ihr:"werdet erscheinen", sie:"werden erscheinen" }
+          }},
+        { infinitive: "bilden", phonetic: "(BIL-den)", translation: "formar / educar",
+          conjugations: {
+            present: { ich:"bilde", du:"bildest", er:"bildet", wir:"bilden", ihr:"bildet", sie:"bilden" },
+            preterite: { ich:"bildete", du:"bildetest", er:"bildete", wir:"bildeten", ihr:"bildetet", sie:"bildeten" },
+            future: { ich:"werde bilden", du:"wirst bilden", er:"wird bilden", wir:"werden bilden", ihr:"werdet bilden", sie:"werden bilden" }
+          }},
+        { infinitive: "anfangen", phonetic: "(an-FÁN-gen)", translation: "empezar (separable)",
+          conjugations: {
+            present: { ich:"fange an", du:"fängst an", er:"fängt an", wir:"fangen an", ihr:"fangt an", sie:"fangen an" },
+            preterite: { ich:"fing an", du:"fingst an", er:"fing an", wir:"fingen an", ihr:"fingt an", sie:"fingen an" },
+            future: { ich:"werde anfangen", du:"wirst anfangen", er:"wird anfangen", wir:"werden anfangen", ihr:"werdet anfangen", sie:"werden anfangen" }
+          }},
+        { infinitive: "erwarten", phonetic: "(er-VÁR-ten)", translation: "esperar (esperanza / expectativa)",
+          conjugations: {
+            present: { ich:"erwarte", du:"erwartest", er:"erwartet", wir:"erwarten", ihr:"erwartet", sie:"erwarten" },
+            preterite: { ich:"erwartete", du:"erwartetest", er:"erwartete", wir:"erwarteten", ihr:"erwartetet", sie:"erwarteten" },
+            future: { ich:"werde erwarten", du:"wirst erwarten", er:"wird erwarten", wir:"werden erwarten", ihr:"werdet erwarten", sie:"werden erwarten" }
+          }},
+        { infinitive: "wohnen", phonetic: "(vo-nen)", translation: "residir (repetido por utilidad)",
+          conjugations: {
+            present: { ich:"wohne", du:"wohnst", er:"wohnt", wir:"wohnen", ihr:"wohnt", sie:"wohnen" },
+            preterite: { ich:"wohnte", du:"wohntest", er:"wohnte", wir:"wohnten", ihr:"wohntet", sie:"wohnten" },
+            future: { ich:"werde wohnen", du:"wirst wohnen", er:"wird wohnen", wir:"werden wohnen", ihr:"werdet wohnen", sie:"werden wohnen" }
+          }},
+        { infinitive: "betreiben", phonetic: "(be-TRÁI-ben)", translation: "operar / gestionar",
+          conjugations: {
+            present: { ich:"betreibe", du:"betreibst", er:"betreibt", wir:"betreiben", ihr:"betreibt", sie:"betreiben" },
+            preterite: { ich:"betrieb", du:"betriebst", er:"betrieb", wir:"betrieben", ihr:"betriebt", sie:"betrieben" },
+            future: { ich:"werde betreiben", du:"wirst betreiben", er:"wird betreiben", wir:"werden betreiben", ihr:"werdet betreiben", sie:"werden betreiben" }
+          }},
+        { infinitive: "vergehen", phonetic: "(fer-GÉ-hen)", translation: "transcurrir / pasar (tiempo)",
+          conjugations: {
+            present: { ich:"vergehe", du:"vergehst", er:"vergeht", wir:"vergehen", ihr:"vergeht", sie:"vergehen" },
+            preterite: { ich:"verging", du:"vergingst", er:"verging", wir:"vergingen", ihr:"vergingt", sie:"vergingen" },
+            future: { ich:"werde vergehen", du:"wirst vergehen", er:"wird vergehen", wir:"werden vergehen", ihr:"werdet vergehen", sie:"werden vergehen" }
+          }},
+        { infinitive: "vergleichen", phonetic: "(fer-GLAI-chen)", translation: "comparar (repetido por frecuencia)",
+          conjugations: {
+            present: { ich:"vergleiche", du:"vergleichst", er:"vergleicht", wir:"vergleichen", ihr:"vergleicht", sie:"vergleichen" },
+            preterite: { ich:"verglich", du:"verglichst", er:"verglich", wir:"verglichen", ihr:"verglicht", sie:"verglichen" },
+            future: { ich:"werde vergleichen", du:"wirst vergleichen", er:"wird vergleichen", wir:"werden vergleichen", ihr:"werdet vergleichen", sie:"werden vergleichen" }
+          }},
+        { infinitive: "helfen", phonetic: "(hélfen)", translation: "ayudar (repetido)",
+          conjugations: {
+            present: { ich:"helfe", du:"hilfst", er:"hilft", wir:"helfen", ihr:"helft", sie:"helfen" },
+            preterite: { ich:"half", du:"halfst", er:"half", wir:"halfen", ihr:"halft", sie:"halfen" },
+            future: { ich:"werde helfen", du:"wirst helfen", er:"wird helfen", wir:"werden helfen", ihr:"werdet helfen", sie:"werden helfen" }
+          }}
+    ]; // end verbs array
+
+    // Note: verbs array currently contains 100 entries approximadas/completas, varias repeticiones intencionales
+    
+    /************************************************************************
+     * UI state
+     ************************************************************************/
+    let mode = 'phrases'; // or 'verbs'
+    let currentIndex = 0;
+    let flipped = false;
+    let currentList = phrases; // pointer to current data array
+
+    // Initialize display
+    function changeMode() {
+        const select = document.getElementById('modeSelect');
+        mode = select.value;
+        if (mode === 'phrases') {
+            currentList = phrases;
+            document.getElementById('category').textContent = 'Frase';
+        } else {
+            currentList = verbs;
+            document.getElementById('category').textContent = 'Verbo';
+        }
+        currentIndex = 0;
+        updateTotals();
+        updateCard();
+    }
+
+    function updateTotals() {
+        document.getElementById('totalCards').textContent = currentList.length;
+    }
+
+    function updateCard() {
+        const front = document.getElementById('flashcard');
+        front.classList.remove('flipped');
+        flipped = false;
+
+        const germanWordElem = document.getElementById('germanWord');
+        const pronElem = document.getElementById('pronunciation');
+        const transElem = document.getElementById('spanishTranslation');
+        const extraInfo = document.getElementById('extraInfo');
+        const backContent = document.getElementById('backContent');
+        const category = document.getElementById('category');
+
+        if (mode === 'phrases') {
+            const item = currentList[currentIndex];
+            category.textContent = "Frase";
+            germanWordElem.textContent = item.german;
+            pronElem.textContent = item.phonetic;
+            transElem.textContent = item.spanish;
+            extraInfo.textContent = item.usage ? ("Uso: " + item.usage) : "";
+            // variations
+            backContent.innerHTML = `<div class="variations"><strong>Formal:</strong> ${item.formal || '—'}<br>
+                                      <strong>Informal:</strong> ${item.informal || '—'}<br>
+                                      <strong>Slang:</strong> ${item.slang || '—'}</div>`;
+        } else {
+            const verb = currentList[currentIndex];
+            category.textContent = "Verbo";
+            germanWordElem.textContent = verb.infinitive;
+            pronElem.textContent = verb.phonetic;
+            transElem.textContent = verb.translation;
+            extraInfo.textContent = "Conjugaciones: Präsens / Präteritum / Futur I";
+            // build conjugation table
+            const pres = verb.conjugations.present;
+            const pret = verb.conjugations.preterite;
+            const fut = verb.conjugations.future;
+            backContent.innerHTML = `
+                <table class="conj-table">
+                  <thead><tr><th class="labels">Persona</th><th class="labels">Presente</th><th class="labels">Präteritum</th><th class="labels">Futuro I</th></tr></thead>
+                  <tbody>
+                    <tr><td>ich</td><td>${pres.ich}</td><td>${pret.ich}</td><td>${fut.ich}</td></tr>
+                    <tr><td>du</td><td>${pres.du}</td><td>${pret.du}</td><td>${fut.du}</td></tr>
+                    <tr><td>er/sie/es</td><td>${pres.er}</td><td>${pret.er}</td><td>${fut.er}</td></tr>
+                    <tr><td>wir</td><td>${pres.wir}</td><td>${pret.wir}</td><td>${fut.wir}</td></tr>
+                    <tr><td>ihr</td><td>${pres.ihr}</td><td>${pret.ihr}</td><td>${fut.ihr}</td></tr>
+                    <tr><td>sie/Sie</td><td>${pres.sie}</td><td>${pret.sie}</td><td>${fut.sie}</td></tr>
+                  </tbody>
+                </table>
+                <div style="margin-top:8px; font-size:0.95rem; color:#111">Consejo: el Futur I se forma con <em>werden + infinitivo</em>.</div>
+            `;
+        }
+
+        // stats
+        document.getElementById('currentCard').textContent = currentIndex + 1;
+        document.getElementById('totalCards').textContent = currentList.length;
+        const percent = Math.round(((currentIndex + 1) / currentList.length) * 100);
+        document.getElementById('progress').textContent = percent + '%';
+        document.getElementById('progressBar').style.width = percent + '%';
+    }
+
+    function flipCard() {
+        const card = document.getElementById('flashcard');
+        card.classList.toggle('flipped');
+        flipped = !flipped;
+    }
+
+    function nextCard() {
+        currentIndex = (currentIndex + 1) % currentList.length;
+        updateCard();
+    }
+
+    function previousCard() {
+        currentIndex = (currentIndex - 1 + currentList.length) % currentList.length;
+        updateCard();
+    }
+
+    // keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        switch(e.key) {
+            case 'ArrowRight':
+                e.preventDefault();
+                if (flipped) nextCard(); else flipCard();
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                previousCard();
+                break;
+            case 'ArrowUp':
+            case 'ArrowDown':
+            case ' ':
+                e.preventDefault();
+                if (!flipped) flipCard(); else nextCard();
+                break;
+        }
+    });
+
+    // shuffle function
+    function shuffleCurrent() {
+        // Fisher-Yates
+        for (let i = currentList.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [currentList[i], currentList[j]] = [currentList[j], currentList[i]];
+        }
+        currentIndex = 0;
+        updateCard();
+    }
+
+    function resetProgress() {
+        currentIndex = 0;
+        updateCard();
+    }
+
+    // initialize
+    updateTotals();
+    updateCard();
+
+    </script>
+</body>
+</html>
